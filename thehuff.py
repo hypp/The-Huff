@@ -9,7 +9,7 @@
 # I define the alphabet as bytes from 0 to 255
 frequency = {}
 
-with open("clearscreen.ROM","rb") as f:
+with open("test.txt","rb") as f:
     byte = f.read(1)
     while byte:
         # Do stuff with byte.
@@ -21,6 +21,7 @@ with open("clearscreen.ROM","rb") as f:
         byte = f.read(1)
 
 # 2. Put the frequency and the value in a queue.
+# Also create an empty queue to be used later
 # We must always make sure that our queue is sorted by frequency
 # so that we can easily find the nodes with the lowest frequency.
 # I use a Tree node to store the data
@@ -35,6 +36,7 @@ class Tree:
         return self.frequency <= other.frequency
 
 queue = []
+merge_queue = []
 
 for key, value in frequency.iteritems() :
     value = frequency[key] 
@@ -46,30 +48,50 @@ queue.sort(reverse=True)
 for t in queue:
     print "frequency: %s key: %s" % (t.frequency, t.value)
 
-# 3. Now remove the two Tree nodes with the lowest frequencies
-# and create a new node with them as children and the sum of their
+# 3. Now remove the two Tree nodes with the lowest frequencies.
+# Examine both queues but prefare the queue with single elements.
+# Create a new node with them as children and the sum of their
 # frequencies as new frequency. Put the new node into the queue
 # and sort the queue.
 # Repeat until there is only one element in the queue.
 # The last element is the root of our tree
-while len(queue) > 1:
-    left = queue.pop()
-    right = queue.pop()
+while len(queue) > 0 or len(merge_queue) > 1:
+    if len(merge_queue) > 0:
+        if (len(queue) > 0):
+            if merge_queue[-1].frequency < queue[-1].frequency:
+                left = merge_queue.pop()        
+            else:
+                left = queue.pop()        
+        else:
+            left = merge_queue.pop()        
+    else:
+        left = queue.pop()        
+
+    if len(merge_queue) > 0:
+        if len(queue) > 0:
+            if merge_queue[-1].frequency < queue[-1].frequency:
+                right = merge_queue.pop()        
+            else:
+                right = queue.pop()                
+        else:
+            right = merge_queue.pop()        
+    else:
+        right = queue.pop()
 
     print "left frequency: %s key: %s" % (left.frequency, left.value)
     print "right frequency: %s key: %s" % (right.frequency, right.value)
     
     node = Tree(left.frequency + right.frequency, left.value + ":" + right.value, left, right)
-    queue.append(node)
+    merge_queue.append(node)
     # TODO Use insertion sort instead
-    queue.sort(reverse=True)
+    merge_queue.sort(reverse=True)
 
 # get our tree
-tree = queue.pop()
+tree = merge_queue.pop()
 print "root frequency: %s key: %s" % (tree.frequency, tree.value)
 
 def print_codes(node, code = ""):
-    if node.left == None:
+    if node.left == None and node.right == None:
         print "Value: %s %s Code: %s Length: %s" % (node.value, chr(int(node.value)), code, len(code))
     else:
         print_codes(node.left, code + "0")
@@ -91,7 +113,7 @@ print_codes(tree)
 code_lengths = []
 
 def build_code_lengths(node, code = 0):
-    if node.left == None:
+    if node.left == None and node.right == None:
         item = (code, node.value)
         code_lengths.append(item)
     else:
