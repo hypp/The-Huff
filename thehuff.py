@@ -122,13 +122,13 @@ def encode(inputfile, outputfile):
     # I use a recursive function for that
     code_lengths = []
 
-    def build_code_lengths(node, code = 0):
+    def build_code_lengths(node, length = 0):
         if node.left == None and node.right == None:
-            item = (code, node.value)
+            item = (length, node.value)
             code_lengths.append(item)
         else:
-            build_code_lengths(node.left, code + 1)
-            build_code_lengths(node.right, code + 1)
+            build_code_lengths(node.left, length + 1)
+            build_code_lengths(node.right, length + 1)
 
     build_code_lengths(tree)
     # 2. Sort on code length and value
@@ -148,45 +148,31 @@ def encode(inputfile, outputfile):
 
     for key, value in bitlength_count.iteritems() :
         print "a", key, value
-        
-    # 4. Find the first code for each length
-    next_code = {}
+
+    # 4. New impl. Find the code for each symbol
+    encode_code_table = {}
+    mapping = {}    
     code = 0
-    bitlength_count[0] = 0
-    for bits in range(1,16):
-        if not bitlength_count.has_key(bits-1):
-            bitlength_count[bits-1] = 0
-        code = (code + bitlength_count[bits-1]) << 1
-        next_code[bits] = code
+    for i in range(0, len(code_lengths)):
+        length, symbol = code_lengths[i]
+        print "symbol: %s code: %s length: %s" % (symbol, bin(code), length)
+        encode_code_table[code] = (symbol, length)
+        mapping[symbol] = (code, length)
+        if i < len(code_lengths)-1: 
+            code = (code + 1) << (code_lengths[i+1][0] - code_lengths[i][0])
 
-    for key, value in bitlength_count.iteritems() :
-        print "b", key, value
 
-    for key, value in next_code.iteritems() :
-        print "c", key, bin(value)
-
-    # 5. Assign codes
-    codes = []
-    for n in range(0,len(code_lengths)):
-        length = code_lengths[n][0]
-        value = code_lengths[n][1]
-        if length != 0:
-            item = (value, next_code[length])
-            codes.append(item)
-            next_code[length] += 1
-            
+    print "encode_code: %s" % (encode_code_table)
+          
     value_table = bytearray()
     code_length_table = bytearray()
-    mapping = {}
-    for t in codes:
-        mapping[t[0]] = t[1]
-        value = t[0]
-        code = bin(t[1])
+    for t in code_lengths:
+        length, value = t
 
         value_table.append(value)
-        code_length_table.append(len(code)-2) # -2 for 0b
+        code_length_table.append(length)
 
-        print "value: %s %s code: %s" % (value, chr(int(value)), code)
+        print "value: %s %s code: %s" % (value, chr(int(value)), length)
 
     if len(value_table) > 256:
         print "More than 256 different values. Should not happen"
@@ -205,8 +191,9 @@ def encode(inputfile, outputfile):
     # Encoding
     bits = bitstring.BitArray()
     for byte in data:
-        code = bin(mapping[byte])
-        bits.append(code)
+        code, length = mapping[byte]
+        str_code = "0b{code:0{width}b}".format(code=code, width=length)
+        bits.append(str_code)
 
     bytar = bits.tobytes()
     with open(outputfile, "wb") as f:
@@ -245,8 +232,10 @@ def decode(inputfile, outputfile):
     code = 0
     for i in range(0, len(decode_symbol_table)):
         symbol = decode_symbol_table[i]
-        print "symbol: %s code: %s" % (symbol, bin(code))
-        decode_code_table[code] = symbol
+        length = decode_code_length_table[i]
+        str_code = "0b{code:0{width}b}".format(code=code, width=length)
+        print "symbol: %s code: %s" % (symbol, str_code)
+        decode_code_table[str_code] = symbol
         if i < len(decode_symbol_table)-1: 
             code = (code + 1) << (decode_code_length_table[i+1] - decode_code_length_table[i])
 
@@ -262,8 +251,9 @@ def decode(inputfile, outputfile):
         for i in range(1, decode_code_max_len+1):
             bits_to_analyze = encoded_bits[start_pos:start_pos+i]
             code = bits_to_analyze.uint
-            if decode_code_table.has_key(code):
-                symbol = decode_code_table[code]
+            str_code = "0b{code:0{width}b}".format(code=code, width=i)
+            if decode_code_table.has_key(str_code):
+                symbol = decode_code_table[str_code]
                 decoded_data.append(symbol)
                 start_pos += i
                 found = True
