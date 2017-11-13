@@ -59,7 +59,7 @@ def encode(inputfile, outputfile):
         print "frequency: %s key: %s" % (t.frequency, t.value)
 
     # 3. Now remove the two Tree nodes with the lowest frequencies.
-    # Examine both queues but prefare the queue with single elements.
+    # Examine both queues but prefer the queue with single elements.
     # Create a new node with them as children and the sum of their
     # frequencies as new frequency. Put the new node into the queue
     # and sort the queue.
@@ -138,17 +138,6 @@ def encode(inputfile, outputfile):
         print "length: %s value: %s" % t
 
     # 3. Find how many codes have the same length for each length
-    bitlength_count = {}
-    for t in code_lengths:
-        length = t[0]
-        if bitlength_count.has_key(length):
-            bitlength_count[length] += 1
-        else:
-            bitlength_count[length] = 1
-
-    for key, value in bitlength_count.iteritems() :
-        print "a", key, value
-
     # 4. New impl. Find the code for each symbol
     encode_code_table = {}
     mapping = {}    
@@ -158,21 +147,37 @@ def encode(inputfile, outputfile):
         print "symbol: %s code: %s length: %s" % (symbol, bin(code), length)
         encode_code_table[code] = (symbol, length)
         mapping[symbol] = (code, length)
-        if i < len(code_lengths)-1: 
+        if i < len(code_lengths)-1:
             code = (code + 1) << (code_lengths[i+1][0] - code_lengths[i][0])
 
 
     print "encode_code: %s" % (encode_code_table)
-          
+
     value_table = bytearray()
     code_length_table = bytearray()
-    for t in code_lengths:
-        length, value = t
+    for i in range(0, len(code_lengths), 2):
+        length1, value1 = code_lengths[i]
+        value_table.append(value1)
+        if i+1 >= len(code_lengths):
+            length2 = 1
+            value2 = -1
+        else:
+            length2, value2 = code_lengths[i+1]
+            value_table.append(value2)
 
-        value_table.append(value)
-        code_length_table.append(length)
+        if length1 > 16 or length1 < 1:
+            print "Invalid length1. Fail %s" % (length1)
+            sys.exit(1)
 
-        print "value: %s %s code: %s" % (value, chr(int(value)), length)
+        if length2 > 16 or length2 < 1:
+            print "Invalid length2. Fail %s" % (length2)
+            sys.exit(1)
+
+        packed_code = (length1-1) << 4 | (length2-1)
+        code_length_table.append(packed_code)
+
+        print "value1: %s %s code: %s" % (value1, chr(int(value1)), hex(length1))
+        print "value2: %s %s code: %s %s" % (value2, chr(int(value2)), hex(length2), hex(packed_code))
 
     if len(value_table) > 256:
         print "More than 256 different values. Should not happen"
@@ -196,6 +201,9 @@ def encode(inputfile, outputfile):
         bits.append(str_code)
 
     bytar = bits.tobytes()
+    print "Length values: %s" % (len(value_table))
+    print "Length code lengths: %s" % (len(code_length_table))
+    print "Length data: %s" % (len(bytar))
     with open(outputfile, "wb") as f:
         f.write(struct.pack('B', len(value_table)))
         f.write(value_table)
@@ -221,9 +229,13 @@ def decode(inputfile, outputfile):
     print "decoded symbol table: %s" % (decode_symbol_table)
 
     decode_code_length_table = []
-    for i in range(0, number_of_symbols):
+    for i in range(0, number_of_symbols/2):
         code_length = encoded_bytes.pop(0)
-        decode_code_length_table.append(code_length)
+        cl1 = ((code_length & 0xf0) >> 4) + 1
+        cl2 = (code_length & 0xf) + 1
+        print "packed_code: %s %s %s" % (hex(code_length), hex(cl1), hex(cl2))
+        decode_code_length_table.append(cl1)
+        decode_code_length_table.append(cl2)
 
     print "decoded code length table: %s" % (decode_code_length_table)
 
