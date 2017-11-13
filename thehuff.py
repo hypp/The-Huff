@@ -160,7 +160,7 @@ def encode(inputfile, outputfile):
         value_table.append(value1)
         if i+1 >= len(code_lengths):
             length2 = 1
-            value2 = -1
+            value2 = 0
         else:
             length2, value2 = code_lengths[i+1]
             value_table.append(value2)
@@ -229,7 +229,7 @@ def decode(inputfile, outputfile):
     print "decoded symbol table: %s" % (decode_symbol_table)
 
     decode_code_length_table = []
-    for i in range(0, number_of_symbols/2):
+    while len(decode_code_length_table) < number_of_symbols:
         code_length = encoded_bytes.pop(0)
         cl1 = ((code_length & 0xf0) >> 4) + 1
         cl2 = (code_length & 0xf) + 1
