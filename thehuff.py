@@ -11,7 +11,7 @@ import argparse
 
 import bitstring
 
-def encode(inputfile, outputfile):
+def encode(inputfile, outputfile, verbose=False):
     '''
     Huffman encode a file.
     '''
@@ -55,8 +55,9 @@ def encode(inputfile, outputfile):
 
     queue.sort(reverse=True)
 
-    for t in queue:
-        print "frequency: %s key: %s" % (t.frequency, t.value)
+    if verbose:
+        for t in queue:
+            print "frequency: %s key: %s" % (t.frequency, t.value)
 
     # 3. Now remove the two Tree nodes with the lowest frequencies.
     # Examine both queues but prefer the queue with single elements.
@@ -88,8 +89,9 @@ def encode(inputfile, outputfile):
         else:
             right = queue.pop()
 
-        print "left frequency: %s key: %s" % (left.frequency, left.value)
-        print "right frequency: %s key: %s" % (right.frequency, right.value)
+        if verbose:
+            print "left frequency: %s key: %s" % (left.frequency, left.value)
+            print "right frequency: %s key: %s" % (right.frequency, right.value)
         
         node = Tree(left.frequency + right.frequency, str(left.value) + ":" + str(right.value), left, right)
         merge_queue.append(node)
@@ -98,7 +100,8 @@ def encode(inputfile, outputfile):
 
     # get our tree
     tree = merge_queue.pop()
-    print "root frequency: %s key: %s" % (tree.frequency, tree.value)
+    if verbose:
+        print "root frequency: %s key: %s" % (tree.frequency, tree.value)
 
     def print_codes(node, code = ""):
         if node.left == None and node.right == None:
@@ -107,7 +110,8 @@ def encode(inputfile, outputfile):
             print_codes(node.left, code + "0")
             print_codes(node.right, code + "1")
 
-    print_codes(tree)
+    if verbose:
+        print_codes(tree)
 
     # At this point we are done.
     # BUT we want Canonical Huffman so ...
@@ -134,24 +138,25 @@ def encode(inputfile, outputfile):
     # 2. Sort on code length and value
     code_lengths.sort()
 
-    for t in code_lengths:
-        print "length: %s value: %s" % t
+    if verbose:
+        for t in code_lengths:
+            print "length: %s value: %s" % t
 
-    # 3. Find how many codes have the same length for each length
-    # 4. New impl. Find the code for each symbol
+    # 3. New impl. Find the code for each symbol
     encode_code_table = {}
     mapping = {}    
     code = 0
     for i in range(0, len(code_lengths)):
         length, symbol = code_lengths[i]
-        print "symbol: %s code: %s length: %s" % (symbol, bin(code), length)
+        if verbose:
+            print "symbol: %s code: %s length: %s" % (symbol, bin(code), length)
         encode_code_table[code] = (symbol, length)
         mapping[symbol] = (code, length)
         if i < len(code_lengths)-1:
             code = (code + 1) << (code_lengths[i+1][0] - code_lengths[i][0])
 
-
-    print "encode_code: %s" % (encode_code_table)
+    if verbose:
+        print "encode_code: %s" % (encode_code_table)
 
     value_table = bytearray()
     code_length_table = bytearray()
@@ -176,22 +181,26 @@ def encode(inputfile, outputfile):
         packed_code = (length1-1) << 4 | (length2-1)
         code_length_table.append(packed_code)
 
-        print "value1: %s %s code: %s" % (value1, chr(int(value1)), hex(length1))
-        print "value2: %s %s code: %s %s" % (value2, chr(int(value2)), hex(length2), hex(packed_code))
+        if verbose:
+            print "value1: %s %s code: %s" % (value1, chr(int(value1)), hex(length1))
+            print "value2: %s %s code: %s %s" % (value2, chr(int(value2)), hex(length2), hex(packed_code))
 
     if len(value_table) > 256:
         print "More than 256 different values. Should not happen"
         sys.exit(-1)
 
-    print "value_table:"
-    for byte in value_table:
-        print "%d" % (byte)
+    if verbose:
+        print "value_table:"
+        for byte in value_table:
+            print "%d" % (byte)
 
-    print "code_length_table:"
-    for byte in code_length_table:
-        print "%d" % (byte)
+    if verbose:
+        print "code_length_table:"
+        for byte in code_length_table:
+            print "%d" % (byte)
 
-    print "mapping: %s" % (mapping)
+    if verbose:
+        print "mapping: %s" % (mapping)
 
     # Encoding
     bits = bitstring.BitArray()
@@ -201,16 +210,18 @@ def encode(inputfile, outputfile):
         bits.append(str_code)
 
     bytar = bits.tobytes()
-    print "Length values: %s" % (len(value_table))
+    print "Number of symbols/values: %s" % (len(value_table))
     print "Length code lengths: %s" % (len(code_length_table))
     print "Length data: %s" % (len(bytar))
+    print "Original length data: %s" % (len(data))
+    print "Bytes saved: %s" % (len(data) - len(bytar) - len(value_table) - len(code_length_table))
     with open(outputfile, "wb") as f:
         f.write(struct.pack('B', len(value_table)))
         f.write(value_table)
         f.write(code_length_table)
         f.write(bytar)
 
-def decode(inputfile, outputfile):
+def decode(inputfile, outputfile, verbose=False):
     '''
     Huffman decode a file
     '''
@@ -219,25 +230,30 @@ def decode(inputfile, outputfile):
         encoded_bytes = bytearray(f.read())
 
     number_of_symbols = encoded_bytes.pop(0)
-    print "num_symbols: %s" % (number_of_symbols)
+    if verbose:
+        print "num_symbols: %s" % (number_of_symbols)
 
     decode_symbol_table = []
     for i in range(0, number_of_symbols):
         symbol = encoded_bytes.pop(0)
         decode_symbol_table.append(symbol)
 
-    print "decoded symbol table: %s" % (decode_symbol_table)
+    if verbose:
+        print "decoded symbol table: %s" % (decode_symbol_table)
 
     decode_code_length_table = []
     while len(decode_code_length_table) < number_of_symbols:
-        code_length = encoded_bytes.pop(0)
-        cl1 = ((code_length & 0xf0) >> 4) + 1
-        cl2 = (code_length & 0xf) + 1
-        print "packed_code: %s %s %s" % (hex(code_length), hex(cl1), hex(cl2))
+        packed_code = encoded_bytes.pop(0)
+        cl1 = ((packed_code & 0xf0) >> 4) + 1
+        cl2 = (packed_code & 0xf) + 1
+        if verbose:
+            print "packed_code: %s %s %s" % (hex(packed_code), hex(cl1), hex(cl2))
         decode_code_length_table.append(cl1)
-        decode_code_length_table.append(cl2)
+        if len(decode_code_length_table) < number_of_symbols:
+            decode_code_length_table.append(cl2)
 
-    print "decoded code length table: %s" % (decode_code_length_table)
+    if verbose:
+        print "decoded code length table: %s" % (decode_code_length_table)
 
     # Rebuild tree
     decode_code_table = {}
@@ -246,7 +262,8 @@ def decode(inputfile, outputfile):
         symbol = decode_symbol_table[i]
         length = decode_code_length_table[i]
         str_code = "0b{code:0{width}b}".format(code=code, width=length)
-        print "symbol: %s code: %s" % (symbol, str_code)
+        if verbose:
+            print "symbol: %s code: %s" % (symbol, str_code)
         decode_code_table[str_code] = symbol
         if i < len(decode_symbol_table)-1: 
             code = (code + 1) << (decode_code_length_table[i+1] - decode_code_length_table[i])
@@ -264,6 +281,8 @@ def decode(inputfile, outputfile):
             bits_to_analyze = encoded_bits[start_pos:start_pos+i]
             code = bits_to_analyze.uint
             str_code = "0b{code:0{width}b}".format(code=code, width=i)
+            if verbose:
+                print "Lookup: %s" % (str_code)
             if decode_code_table.has_key(str_code):
                 symbol = decode_code_table[str_code]
                 decoded_data.append(symbol)
@@ -272,7 +291,7 @@ def decode(inputfile, outputfile):
                 break
 
         if not found:
-            print "decode failed, startpos %s" % (start_pos)
+            print "decode failed, startpos: %s len: %s" % (start_pos, len(encoded_bits))
             print "decoded code table: %s" % (decode_code_table)
             print "decode_code_max_len %s" % (decode_code_max_len)
             sys.exit(-2)
@@ -295,9 +314,10 @@ args = parser.parse_args()
 
 input_file = args.infile
 output_file = args.outfile
+verbose = args.verbose
 
 if args.encode:
-    encode(input_file, output_file)
+    encode(input_file, output_file, verbose)
 
 if args.decode:
-    decode(input_file, output_file)
+    decode(input_file, output_file, verbose)
